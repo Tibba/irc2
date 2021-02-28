@@ -33,7 +33,7 @@ class IRCClient(patterns.Subscriber):
     def __init__(self, host, port):
         super().__init__()
         self.username = ""
-        self.msg = ""
+        self.msg = []
         self._run = True
         self.host = host
         self.port = port
@@ -64,7 +64,7 @@ class IRCClient(patterns.Subscriber):
             # Command that leads to the closure of the process
             raise KeyboardInterrupt
         else:
-            self.msg = msg
+            self.msg.append(msg)
         # self.send_msg(msg)
 
     def send_msg(self, data):
@@ -94,9 +94,9 @@ class IRCClient(patterns.Subscriber):
                 await asyncio.sleep(0.05)
                 # detect message type and process it
                 # send output messages
-                if self.msg:
-                    self.send_msg(msg.encode())
-                    self.msg = ""
+                while self.msg:
+                    item = self.msg.pop(0)
+                    self.send_msg(item.encode())
                 # PING - PONG
             except socket.error:
                 # KeyboardInterrupt signifies the end of the view
