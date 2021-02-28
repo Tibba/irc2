@@ -90,7 +90,7 @@ class View(patterns.Publisher):
                     return
             line_shift = (self.width - 2 - max_len) // 2
             for l in lines:
-                self.put_msg(" "*line_shift + l )
+                self.put_msg(" "*line_shift + l)
 
     def _setup_input_win(self):
         self.input_win_begin = (self.height - 1, 0)

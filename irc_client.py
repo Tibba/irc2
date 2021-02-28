@@ -12,7 +12,9 @@ Description:
 """
 import asyncio
 import logging
-import string
+import select
+import threading
+from concurrent.futures import thread
 
 import patterns
 import view
@@ -22,8 +24,9 @@ import argparse
 logging.basicConfig(filename='view.log', level=logging.DEBUG)
 logger = logging.getLogger()
 
-#HOST = 'localhost'
-#PORT = 12345
+# HOST = 'localhost'
+# PORT = 12346
+
 
 class IRCClient(patterns.Subscriber):
 
@@ -34,7 +37,7 @@ class IRCClient(patterns.Subscriber):
         self._run = True
         self.host = host
         self.port = port
-        uelf.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.sock.connect((host, int(port)))
 
     def set_view(self, view):
@@ -52,7 +55,6 @@ class IRCClient(patterns.Subscriber):
             self.username = msg
         else:
             self.process_input(msg)
-            self.send_msg(msg.encode())
 
     def process_input(self, msg):
         # Will need to modify this
@@ -61,9 +63,9 @@ class IRCClient(patterns.Subscriber):
         if msg.lower().startswith('/quit'):
             # Command that leads to the closure of the process
             raise KeyboardInterrupt
+        else:
+            self.msg = msg
         # self.send_msg(msg)
-
-
 
     def send_msg(self, data):
         self.sock.sendall(bytes(data))
@@ -72,7 +74,7 @@ class IRCClient(patterns.Subscriber):
         self.view.add_msg(self.username, msg)
 
     def connect(self, username):
-        self.sock.connect((HOST,PORT))
+        self.sock.connect((HOST, PORT))
 
     async def run(self):
         """
@@ -80,16 +82,31 @@ class IRCClient(patterns.Subscriber):
         """
         self.add_msg("Type your nickname")
         # Remove this section in your code, simply for illustration purposes
-        #for x in range(10):
-        #    self.add_msg(f"call after View.loop: {self.msg}")
-        #    await asyncio.sleep(2)
-
+        while True:
+            try:
+                # check for input messages
+                any_message, _, _ = select.select(
+                    [self.sock], [], [], 0
+                )
+                if any_message:
+                    data = self.sock.recv(1024)
+                    self.add_msg(data.decode('utf-8'))
+                await asyncio.sleep(0.05)
+                # detect message type and process it
+                # send output messages
+                if self.msg:
+                    self.send_msg(msg.encode())
+                    self.msg = ""
+                # PING - PONG
+            except socket.error:
+                # KeyboardInterrupt signifies the end of the view
+                logger.debug(f"KeyboardInterrupt detected within the view")
+                raise
 
     def close(self):
         # Terminate connection
         logger.debug(f"Closing IRC Client object")
         pass
-
 
 
 def main(args):
@@ -105,12 +122,12 @@ def main(args):
 
         async def inner_run():
             await asyncio.gather(
-                v.run(),
                 client.run(),
+                v.run(),
                 return_exceptions=True,
             )
         try:
-            asyncio.run( inner_run() )
+            asyncio.run(inner_run())
         except KeyboardInterrupt as e:
             logger.debug(f"Signifies end of process")
     client.close()
@@ -121,7 +138,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
 
     parser.add_argument('--server', '-s', default='127.0.0.1', help='server IP address')
-    parser.add_argument('-p', '--port', default='12345', help='server port')
+    parser.add_argument('-p', '--port', default='12346', help='server port')
 
     args = parser.parse_args()
     HOST = args.server
